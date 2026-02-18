@@ -64,12 +64,18 @@ class Device(db.Model):
         return f"<Device id={self.id} name={self.name!r} ip={self.ip_address} online={self.is_online}>"
 
     def to_dict(self) -> dict:
+        last_seen_iso = None
+        if self.last_seen:
+            last_seen_iso = self.last_seen.isoformat()
+            if not last_seen_iso.endswith(('Z', '+00:00')):
+                last_seen_iso += 'Z'
+        
         return {
             "id": self.id,
             "name": self.name,
             "ip_address": self.ip_address,
             "mac_address": self.mac_address,
-            "last_seen": self.last_seen.isoformat() if self.last_seen else None,
+            "last_seen": last_seen_iso,
             "is_online": self.is_online,
         }
 
@@ -119,12 +125,24 @@ class Session(db.Model):
         )
 
     def to_dict(self) -> dict:
+        start_time_iso = None
+        if self.start_time:
+            start_time_iso = self.start_time.isoformat()
+            if not start_time_iso.endswith(('Z', '+00:00')):
+                start_time_iso += 'Z'
+                
+        end_time_iso = None
+        if self.end_time:
+            end_time_iso = self.end_time.isoformat()
+            if not end_time_iso.endswith(('Z', '+00:00')):
+                end_time_iso += 'Z'
+
         return {
             "id": self.id,
             "device_id": self.device_id,
             "connection_type": self.connection_type,
-            "start_time": self.start_time.isoformat() if self.start_time else None,
-            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "start_time": start_time_iso,
+            "end_time": end_time_iso,
             "total_messages": self.total_messages,
         }
 
@@ -159,11 +177,17 @@ class Message(db.Model):
         return f"<Message id={self.id} delivered={self.delivered} text={preview!r}>"
 
     def to_dict(self) -> dict:
+        ts_iso = None
+        if self.timestamp:
+            ts_iso = self.timestamp.isoformat()
+            if not ts_iso.endswith(('Z', '+00:00')):
+                ts_iso += 'Z'
+
         return {
             "id": self.id,
             "session_id": self.session_id,
             "text": self.text,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": ts_iso,
             "delivered": self.delivered,
             "latency_ms": self.latency_ms,
         }
@@ -202,6 +226,12 @@ class PacketLog(db.Model):
         )
 
     def to_dict(self) -> dict:
+        ts_iso = None
+        if self.timestamp:
+            ts_iso = self.timestamp.isoformat()
+            if not ts_iso.endswith(('Z', '+00:00')):
+                ts_iso += 'Z'
+
         return {
             "id": self.id,
             "session_id": self.session_id,
@@ -209,5 +239,5 @@ class PacketLog(db.Model):
             "source_ip": self.source_ip,
             "dest_ip": self.dest_ip,
             "size_bytes": self.size_bytes,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": ts_iso,
         }
