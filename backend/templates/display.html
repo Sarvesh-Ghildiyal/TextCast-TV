@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TV Display</title>
+  <style>
+    /* Full-screen black canvas with centered white text */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      background-color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #display-text {
+      color: #fff;
+      font-size: 10vw;
+      font-family: 'Arial', sans-serif;
+      font-weight: bold;
+      text-align: center;
+      padding: 2vw;
+      word-break: break-word;
+      line-height: 1.2;
+      /* Smooth fade when text changes */
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    #status-dot {
+      position: fixed;
+      top: 2rem;
+      right: 2rem;
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      background-color: #333;
+      transition: background-color 0.3s;
+      opacity: 0.7;
+    }
+
+    #live-clock {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      color: #333;
+      font-size: 2vw;
+      font-family: monospace;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="display-text">Waiting for text…</div>
+  <div id="status-dot" title="Polling for updates"></div>
+  <div id="live-clock">00:00:00</div>
+
+  <!-- High-visibility debug markers for TV monitoring -->
+  <div id="debug-box"
+    style="position: fixed; top: 2rem; left: 2rem; display: flex; gap: 1rem; align-items: center; z-index: 999;">
+    <div id="js-marker" style="width: 20px; height: 20px; border-radius: 50%; background: #333; border: 2px solid #555;"
+      title="JS Status"></div>
+    <div id="hb-marker" style="width: 20px; height: 20px; border-radius: 50%; background: #333; border: 2px solid #555;"
+      title="Heartbeat Status"></div>
+    <div id="debug-text"
+      style="color: #666; font-size: 1.5vw; font-family: monospace; background: rgba(0,0,0,0.5); padding: 5px;">[INIT]
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Deep Debugging for TV Display
+     * 1. Uses Absolute URLs to bypass resolution issues
+     * 2. Calls heartbeat to log JS execution on Mac backend
+     * 3. Uses visible markers (JS=Red->Green, HB=Red->Blue)
+     */
+    var MAC_IP = "{{ mac_ip }}";
+    var PORT = "{{ port }}";
+    var BASE_URL = "http://" + MAC_IP + ":" + PORT;
+
+    var textEl = document.getElementById('display-text');
+    var statusEl = document.getElementById('status-dot');
+    var debugEl = document.getElementById('debug-text');
+    var jsMarker = document.getElementById('js-marker');
+    var hbMarker = document.getElementById('hb-marker');
+    var clockEl = document.getElementById('live-clock');
+
+    // Step 0: Live Clock
+    function updateClock() {
+      if (clockEl) {
+        var now = new Date();
+        clockEl.textContent = now.getHours().toString().padStart(2, '0') + ':' +
+          now.getMinutes().toString().padStart(2, '0') + ':' +
+          now.getSeconds().toString().padStart(2, '0');
+      }
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    var lastText = '';
+
+    // Step 1: JS started - turn marker Green
+    if (jsMarker) jsMarker.style.background = '#22c55e';
+    if (debugEl) debugEl.textContent = '[JS_OK]';
+    console.log('Script initialized at ' + BASE_URL);
+
+    function apiCall(endpoint, callback) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', BASE_URL + endpoint, true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          callback(xhr.status, xhr.responseText);
+        }
+      };
+      xhr.send();
+    }
+
+    // Step 2: Send Heartbeat to Mac
+    apiCall('/api/tv/heartbeat', function (status, response) {
+      if (status === 200) {
+        if (hbMarker) hbMarker.style.background = '#3b82f6'; // Blue
+        if (debugEl) debugEl.textContent = '[HB_SENT]';
+      } else {
+        if (debugEl) debugEl.textContent = '[HB_ERR:' + status + ']';
+      }
+    });
+
+    function fetchCurrentText() {
+      apiCall('/api/cast/current-text', function (status, response) {
+        if (status === 200) {
+          try {
+            var data = JSON.parse(response);
+            var newText = data.text || '';
+
+            if (newText !== lastText) {
+              textEl.style.opacity = '0';
+              setTimeout(function () {
+                textEl.textContent = newText || 'Waiting for text…';
+                textEl.style.opacity = '1';
+              }, 300);
+              lastText = newText;
+            }
+            if (statusEl) statusEl.style.background = '#22c55e';
+            if (debugEl) debugEl.textContent = '[LIVE]';
+          } catch (e) {
+            if (debugEl) debugEl.textContent = '[PARSE_ERR]';
+          }
+        } else {
+          if (statusEl) statusEl.style.background = '#ef4444';
+          if (debugEl) debugEl.textContent = '[HTTP_ERR:' + status + ']';
+        }
+      });
+    }
+
+    // Start polling
+    setInterval(fetchCurrentText, 2000);
+    fetchCurrentText();
+  </script>
+</body>
